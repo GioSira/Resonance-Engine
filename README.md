@@ -80,11 +80,21 @@ pytest tests/
 
 ## ⚙️ Configuration (.env)
 
-Variable,Description
-SPOTIFY_CLIENT_ID,Your Spotify Application ID
-SPOTIFY_CLIENT_SECRET,Your Spotify Application Secret
-DB_TYPE,Type of DB to use (disk or firebase)
-CACHE_TYPE,Caching layer (disk or memory)
+## ⚙️ Configuration (.env)
+
+The engine uses a `.env` file for environment management. This ensures security and portability across different deployment stages.
+
+| Variable | Scope | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `SPOTIFY_CLIENT_ID` | **Security** | `None` | Your Spotify Developer Application Client ID. |
+| `SPOTIFY_CLIENT_SECRET` | **Security** | `None` | Your Spotify Developer Application Client Secret. |
+| `SPOTIFY_REDIRECT_URI` | **Network** | `http://localhost:8080` | Whitelisted callback for Spotify OAuth flow. |
+| `DB_TYPE` | **Storage** | `disk` | Primary database: `disk` (Local) or `firebase`. |
+| `CACHE_TYPE` | **Performance**| `disk` | Caching layer: `disk` (Persistent) or `memory`. |
+| `LOG_LEVEL` | **Debug** | `INFO` | Verbosity of logs: `DEBUG`, `INFO`, `WARNING`. |
+
+> [!IMPORTANT]  
+> Never commit your `.env` file to version control. Use the provided `.env.example` as a template for new environments.
 
 ---
 
