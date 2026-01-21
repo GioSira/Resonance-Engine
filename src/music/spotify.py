@@ -1,3 +1,5 @@
+# TODO: Integration with Spotify Web API pending client credentials
+
 import os
 
 import spotipy
