@@ -74,7 +74,7 @@ uvicorn main:app --reload
 
 # Execute the stress test suite
 pytest tests/
-
+```
 
 ---
 
@@ -85,7 +85,6 @@ SPOTIFY_CLIENT_ID,Your Spotify Application ID
 SPOTIFY_CLIENT_SECRET,Your Spotify Application Secret
 DB_TYPE,Type of DB to use (disk or firebase)
 CACHE_TYPE,Caching layer (disk or memory)
-
 
 ---
 
