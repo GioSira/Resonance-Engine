@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSO_CORE | FINAL_ACCESS_v20</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p-green: #18f260;
+            --p-bg: #010501;
+            --p-dim: rgba(24, 242, 96, 0.08);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; background: #000; height: 100%; 
+            font-family: 'JetBrains Mono', monospace; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ACCENSIONE CRT REVERSE */
+        #viewport {
+            width: 100vw; height: 100vh; background: var(--p-bg);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative;
+            animation: ignite-burst 0.7s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+        }
+
+        @keyframes ignite-burst {
+            0% { transform: scale(0, 0.002); filter: brightness(50); background: #fff; }
+            40% { transform: scale(1, 0.002); filter: brightness(20); background: #fff; }
+            100% { transform: scale(1, 1); filter: brightness(1); background: var(--p-bg); }
+        }
+
+        #bg-logs {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            font-size: 8px; color: var(--p-green); opacity: 0.04;
+            padding: 20px; pointer-events: none; line-height: 1.2;
+            overflow: hidden; z-index: 1;
+        }
+
+        #hud {
+            position: absolute; width: 100%; height: 100%;
+            background-image: linear-gradient(var(--p-dim) 1px, transparent 1px),
+                              linear-gradient(90deg, var(--p-dim) 1px, transparent 1px);
+            background-size: 60px 60px; opacity: 0.3; z-index: 2;
+        }
+
+        #ui-core { width: 440px; z-index: 10; position: relative; }
+
+        .percentage { 
+            font-size: 72px; font-weight: 800; color: var(--p-green); 
+            font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 25px;
+            filter: drop-shadow(0 0 10px var(--p-green));
+        }
+
+        .bar-frame {
+            width: 100%; height: 10px; border: 1px solid var(--p-green);
+            background: rgba(0,0,0,0.8); margin-bottom: 35px; overflow: hidden;
+        }
+
+        #bar-fill {
+            height: 100%; width: 0%; background: var(--p-green);
+            box-shadow: 0 0 20px var(--p-green);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mod-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px;
+        }
+
+        .mod-box {
+            border: 1px solid var(--p-dim); padding: 10px; font-size: 10px; color: var(--p-green);
+            background: rgba(24, 242, 96, 0.02); display: flex; flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .mod-header { display: flex; justify-content: space-between; margin-bottom: 5px; opacity: 0.6; }
+        .mod-status { font-weight: 800; }
+        .coords { font-size: 8px; color: #fff; opacity: 0.3; }
+
+        .mod-active { border-color: var(--p-green); background: rgba(24, 242, 96, 0.12); }
+        .mod-active .mod-status { color: #fff; text-shadow: 0 0 8px var(--p-green); }
+
+        /* PULSANTE CORRETTO */
+        #action-btn {
+            margin-top: 30px; opacity: 0; transform: translateY(15px);
+            transition: all 0.5s ease-out;
+            visibility: hidden; /* Evita click accidentali prima della fine */
+        }
+
+        .btn-engage {
+            width: 100%; background: var(--p-green); color: #000;
+            border: none; padding: 22px; font-family: inherit;
+            font-weight: 800; font-size: 11px; cursor: pointer; letter-spacing: 12px;
+            text-transform: uppercase; 
+            transition: all 0.2s;
+            position: relative;
+            z-index: 100;
+        }
+
+        .btn-engage:hover { background: #fff; box-shadow: 0 0 30px #fff; transform: scale(1.02); }
+        .btn-engage:active { transform: scale(0.95); }
+
+        .jitter { animation: jitter-anim 0.1s infinite; }
+        @keyframes jitter-anim {
+            0% { transform: translate(0,0); }
+            50% { transform: translate(1px, -1px); }
+            100% { transform: translate(0,0); }
+        }
+
+        /* CLASSE PER RENDERE CLICCABILE */
+        .ready-to-click { 
+            opacity: 1 !important; 
+            transform: translateY(0) !important; 
+            visibility: visible !important;
+            animation: pulse-btn 2s infinite;
+        }
+
+        @keyframes pulse-btn {
+            0% { box-shadow: 0 0 0px var(--p-green); }
+            50% { box-shadow: 0 0 20px var(--p-green); }
+            100% { box-shadow: 0 0 0px var(--p-green); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="bg-logs"></div>
+<div id="hud"></div>
+
+<div id="viewport">
+    <div id="ui-core">
+        <div style="font-size: 9px; color: var(--p-green); letter-spacing: 8px; margin-bottom: 12px; opacity: 0.6;">DSO_TERMINAL_INITIALIZATION</div>
+        
+        <div class="percentage" id="perc">00</div>
+        
+        <div class="bar-frame">
+            <div id="bar-fill"></div>
+        </div>
+
+        <div class="mod-grid">
+            <div class="mod-box" id="m1">
+                <div class="mod-header"><span>CORE_SYNC</span><span class="mod-status" id="s1">WAIT</span></div>
+                <div class="coords" id="c1">REF: 0x000</div>
+            </div>
+            <div class="mod-box" id="m2">
+                <div class="mod-header"><span>NEURAL_LN</span><span class="mod-status" id="s2">WAIT</span></div>
+                <div class="coords" id="c2">REF: 0x000</div>
+            </div>
+            <div class="mod-box" id="m3">
+                <div class="mod-header"><span>MEM_ALLOC</span><span class="mod-status" id="s3">WAIT</span></div>
+                <div class="coords" id="c3">REF: 0x000</div>
+            </div>
+            <div class="mod-box" id="m4">
+                <div class="mod-header"><span>ENCRYPT_ST</span><span class="mod-status" id="s4">WAIT</span></div>
+                <div class="coords" id="c4">REF: 0x000</div>
+            </div>
+        </div>
+
+        <div id="action-btn">
+            <button class="btn-engage" onclick="finalize()">ENGAGE_DSO_CORE</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const audio = {
+        ctx: null,
+        init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+        play(f, d, v=0.01, type='sine') {
+            this.init(); const now = this.ctx.currentTime;
+            const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            o.type = type; o.frequency.setValueAtTime(f, now);
+            g.gain.setValueAtTime(v, now); g.gain.exponentialRampToValueAtTime(0.0001, now + d);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(); o.stop(now + d);
+        }
+    };
+
+    window.onload = async () => {
+        audio.play(40, 1.5, 0.1); 
+        
+        const bar = document.getElementById('bar-fill');
+        const perc = document.getElementById('perc');
+        const bgLogs = document.getElementById('bg-logs');
+        const boxes = [1,2,3,4].map(n => document.getElementById(`m${n}`));
+        const status = [1,2,3,4].map(n => document.getElementById(`s${n}`));
+
+        for(let i=0; i<=100; i++) {
+            perc.textContent = i.toString().padStart(2, '0');
+            bar.style.width = i + '%';
+            
+            if(i % 3 === 0) {
+                bgLogs.innerHTML += `SYS_ALLOC_${Math.random().toString(16).slice(2,6).toUpperCase()}... OK<br>`;
+                if(bgLogs.childNodes.length > 35) bgLogs.removeChild(bgLogs.firstChild);
+            }
+
+            [1,2,3,4].forEach(n => {
+                document.getElementById(`c${n}`).textContent = `REF: 0x${Math.floor(Math.random()*999).toString(16).toUpperCase()}`;
+            });
+
+            if(i === 25) { boxes[0].classList.add('mod-active'); status[0].textContent="SYNCED"; triggerJitter(); }
+            if(i === 50) { boxes[1].classList.add('mod-active'); status[1].textContent="ACTIVE"; triggerJitter(); }
+            if(i === 75) { boxes[2].classList.add('mod-active'); status[2].textContent="ALLOC"; triggerJitter(); }
+            if(i === 98) { boxes[3].classList.add('mod-active'); status[3].textContent="SECURE"; triggerJitter(); }
+
+            if(i % 5 === 0) audio.play(200 + i*4, 0.04, 0.01);
+            await new Promise(r => setTimeout(r, 35));
+        }
+
+        // ATTIVAZIONE MANUALE PULSANTE
+        document.getElementById('action-btn').classList.add('ready-to-click');
+    };
+
+    function triggerJitter() {
+        const p = document.getElementById('perc');
+        p.classList.add('jitter');
+        setTimeout(() => p.classList.remove('jitter'), 150);
+        audio.play(150, 0.1, 0.03, 'square');
+    }
+
+    function finalize() {
+        console.log("Accesso Iniziato..."); // Debug
+        audio.play(60, 1.2, 0.1, 'sine');
+        audio.play(1200, 0.1, 0.05, 'sine');
+
+        document.body.style.transition = "all 0.4s cubic-bezier(0.19, 1, 0.22, 1)";
+        document.body.style.filter = "brightness(40) contrast(1.5)";
+        document.body.style.background = "#fff";
+        
+        setTimeout(() => {
+            window.location.href = "placeholder-dashboard.html"; 
+        }, 450);
+    }
+</script>
+</body>
+</html>

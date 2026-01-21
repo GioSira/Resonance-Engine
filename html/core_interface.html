@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DSO_CORE_v6.1 | CONDITIONAL_FLICKER</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;800&amp;display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pip-green: #18f260;
+            --pip-dim: rgba(24, 242, 96, 0.4);
+            --warning-pink: #ff007f;
+            --pip-bg: #030d03;
+            --intensity: 0;
+            --shiver-intensity: 1px;
+        }
+
+        * { box-sizing: border-box; cursor: crosshair; }
+
+        body { 
+            background: #000; display: flex; align-items: center; justify-content: center; 
+            min-height: 100vh; margin: 0; font-family: 'JetBrains Mono', monospace; 
+            overflow: hidden; -webkit-tap-highlight-color: transparent;
+        }
+
+        /* MONITOR DECAY - Attivato solo via JS */
+        @keyframes monitor-flicker {
+            0% { opacity: 1; transform: scale(1) translate(0); }
+            1% { opacity: 0.4; transform: skewX(10deg) translate(5px); filter: invert(1); }
+            2% { opacity: 1; transform: skewX(0) translate(0); filter: none; }
+            5% { opacity: 0.8; transform: translateY(-2px); }
+            6% { opacity: 1; transform: translateY(0); }
+        }
+        .critical-flicker { animation: monitor-flicker 0.1s infinite; }
+
+        #display {
+            width: 100%; max-width: 340px; height: 640px;
+            background: var(--pip-bg); border: 2px solid #222;
+            border-radius: 12px; position: relative; overflow: hidden; 
+            display: flex; flex-direction: column; padding: 25px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9);
+        }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        repeating-linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none; z-index: 10;
+        }
+
+        @keyframes hit-shake {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 1px); }
+            100% { transform: translate(0); }
+        }
+        .hit { animation: hit-shake 0.1s ease-out; }
+
+        @keyframes shiver-anim {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(var(--shiver-intensity), calc(var(--shiver-intensity) * -1)); }
+            75% { transform: translate(calc(var(--shiver-intensity) * -1), var(--shiver-intensity)); }
+        }
+        .shiver { display: inline-block; animation: shiver-anim 0.06s infinite linear !important; color: var(--warning-pink) !important; }
+
+        .header { border-bottom: 1px solid var(--pip-dim); padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .sys-name { font-weight: 800; color: var(--pip-green); font-size: 13px; letter-spacing: 2px; }
+        .clock { font-size: 11px; color: var(--pip-dim); }
+
+        #graph-box { position: relative; height: 80px; border: 1px solid rgba(24, 242, 96, 0.1); margin-bottom: 20px; background: rgba(0,0,0,0.6); }
+        .graph-meta { position: absolute; top: 8px; left: 10px; font-size: 7px; color: var(--pip-dim); z-index: 5; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        #stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; position: relative; z-index: 20; }
+        .card { background: rgba(24, 242, 96, 0.03); border: 1px solid rgba(24, 242, 96, 0.1); padding: 14px; border-radius: 4px; position: relative; cursor: pointer; }
+        .card.at-max { background: rgba(255, 0, 127, 0.15); border-color: var(--warning-pink); }
+        .val { font-size: 30px; font-weight: 800; color: var(--pip-green); display: block; line-height: 1; pointer-events: none; }
+        .label { font-size: 9px; color: var(--pip-dim); text-transform: uppercase; display: block; margin-bottom: 6px; pointer-events: none; }
+        .max-tag { position: absolute; top: 6px; right: 8px; font-size: 6px; color: var(--warning-pink); font-weight: 800; opacity: 0; }
+        .card.at-max .max-tag { opacity: 1; }
+
+        .audio-module { height: 50px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .audio-meta { display: flex; justify-content: space-between; font-size: 7px; color: var(--pip-dim); }
+        .audio-bars { display: flex; align-items: flex-end; gap: 2px; height: 24px; }
+        .bar { flex: 1; background: var(--pip-green); opacity: 0.2; height: 10%; transition: height 0.1s ease; }
+        .bar.corrupted { background: var(--warning-pink) !important; opacity: 0.9 !important; box-shadow: 0 0 8px var(--warning-pink); }
+
+        #console { height: 35px; font-size: 9px; color: var(--pip-dim); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; margin-bottom: 25px; border-left: 2px solid var(--pip-dim); padding-left: 12px; }
+        .log-line::before { content: "> "; color: var(--pip-green); }
+
+        .track-item { font-size: 10px; padding: 10px; color: var(--pip-dim); display: flex; justify-content: space-between; border: 1px solid transparent; cursor: pointer; }
+        .track-item.active { color: var(--pip-green); border: 1px solid rgba(24, 242, 96, 0.2); background: rgba(24,242,96,0.05); }
+
+        .btn-group { display: flex; gap: 12px; margin-top: auto; z-index: 20; }
+        .btn { flex: 1; padding: 15px; background: transparent; border: 1px solid var(--pip-green); color: var(--pip-green); font-family: inherit; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; }
+        .btn:active { background: var(--pip-green); color: #000; }
+    </style>
+</head>
+<body>
+
+<div id="display">
+    <div class="overlay"></div>
+    <div class="header">
+        <span class="sys-name">CORE_SYNC_v6.1</span>
+        <span class="clock" id="clock">00:00:00</span>
+    </div>
+    <div id="graph-box">
+        <div class="graph-meta" id="graph-label">SIGNAL_FLOW</div>
+        <canvas id="fearCanvas"></canvas>
+    </div>
+    <div id="stats-container"></div>
+    <div class="audio-module">
+        <div class="audio-meta">
+            <span id="now-playing">STREAM: IDLE</span>
+            <span id="audio-status">VLT_NOMINAL</span>
+        </div>
+        <div class="audio-bars" id="visualizer"></div>
+    </div>
+    <div id="console"></div>
+    <div class="ml-box">
+        <div id="track-container"></div>
+        <div class="btn-group">
+            <button class="btn" onclick="app.engage()">Execute</button>
+            <button class="btn" onclick="app.skip()">Skip</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const audioSynth = {
+        ctx: null,
+        init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (this.ctx.state === 'suspended') this.ctx.resume(); },
+        play(freq, type = 'sine', duration = 0.1, vol = 0.05) { try { this.init(); const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime); gain.gain.setValueAtTime(vol, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + duration); } catch(e) {} }
+    };
+
+    const config = { criticalId: 'fear', criticalMax: 12 };
+    const state = {
+        params: [
+            { id: 'hope', label: 'Hope', val: 8 },
+            { id: 'fear', label: 'Fear', val: 2 },
+            { id: 'sync', label: 'Sync', val: 42 },
+            { id: 'bio',  label: 'Bio',  val: 5 }
+        ],
+        tracks: ["NEURAL_STREAM_A", "VOID_RESONANCE_B"],
+        activeTrack: 0,
+        history: Array(30).fill(0),
+        isPlaying: false
+    };
+
+    const ui = {
+        log(text) {
+            const con = document.getElementById('console');
+            const line = document.createElement('div');
+            line.className = 'log-line'; line.textContent = text.toUpperCase();
+            con.appendChild(line);
+            if(con.childNodes.length > 2) con.removeChild(con.firstChild);
+        },
+        renderStats() {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '';
+            state.params.forEach(p => {
+                const isCrit = p.id === config.criticalId;
+                container.innerHTML += `
+                    <div class="card ${isCrit && p.val >= config.criticalMax ? 'at-max' : ''}" onmousedown="app.modify('${p.id}', event)">
+                        <span class="label">${p.label}</span>
+                        <span class="max-tag">MAX_CAP</span>
+                        <span class="val ${isCrit && p.val >= 10 ? 'shiver' : ''}" id="val-${p.id}">${p.val.toString().padStart(2, '0')}</span>
+                    </div>
+                `;
+            });
+            this.updateSystemStatus();
+        },
+        updateSystemStatus() {
+            const fear = state.params.find(p => p.id === config.criticalId).val;
+            const audioStatus = document.getElementById('audio-status');
+            const display = document.getElementById('display');
+            
+            if (fear >= config.criticalMax) {
+                audioStatus.textContent = "SIGNAL_LOST";
+                audioStatus.style.color = "var(--warning-pink)";
+                // Lo sfarfallio viene gestito dall'intervallo del visualizer per essere stocastico
+            } else {
+                audioStatus.textContent = "VLT_NOMINAL";
+                audioStatus.style.color = "var(--pip-dim)";
+                display.classList.remove('critical-flicker'); // Rimuoviamo sempre se sotto il max
+            }
+        },
+        initVisualizer() {
+            const viz = document.getElementById('visualizer');
+            for(let i=0; i<30; i++) {
+                const b = document.createElement('div'); b.className = 'bar'; viz.appendChild(b);
+            }
+            setInterval(() => {
+                const fear = state.params.find(p => p.id === config.criticalId).val;
+                const bars = document.querySelectorAll('.bar');
+                const display = document.getElementById('display');
+
+                bars.forEach(b => {
+                    const h = state.isPlaying ? Math.random() * 100 : 5;
+                    b.style.height = h + '%';
+                    if(state.isPlaying && fear >= 10 && Math.random() < (fear/30)) b.classList.add('corrupted');
+                    else b.classList.remove('corrupted');
+                });
+
+                // GESTIONE CONDIZIONALE SFARFALLIO: Solo a valore MASSIMO
+                if(fear >= config.criticalMax) {
+                    if(Math.random() > 0.8) {
+                        display.classList.add('critical-flicker');
+                        setTimeout(() => display.classList.remove('critical-flicker'), 120);
+                    }
+                } else {
+                    display.classList.remove('critical-flicker');
+                }
+            }, 100);
+        },
+        renderTracks() {
+            const container = document.getElementById('track-container');
+            container.innerHTML = '';
+            state.tracks.forEach((t, i) => {
+                container.innerHTML += `<div class="track-item ${i === state.activeTrack ? 'active' : ''}" onmousedown="app.setTrack(${i})"><span>${t}</span><span>0${i+1}</span></div>`;
+            });
+            document.getElementById('now-playing').textContent = `STRM: ${state.tracks[state.activeTrack]}`;
+        },
+        drawGraph() {
+            const canvas = document.getElementById('fearCanvas');
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.parentNode.getBoundingClientRect();
+            canvas.width = rect.width; canvas.height = rect.height;
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            ctx.beginPath(); ctx.strokeStyle = '#ff007f'; ctx.lineWidth = 2;
+            const step = rect.width / (state.history.length - 1);
+            state.history.forEach((v, i) => {
+                const x = i * step; const y = rect.height - (v * 5); 
+                if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.lineTo(rect.width, rect.height); ctx.lineTo(0, rect.height);
+            ctx.fillStyle = 'rgba(255, 0, 127, 0.05)'; ctx.fill();
+        }
+    };
+
+    const app = {
+        boot() {
+            ui.renderStats(); ui.renderTracks(); ui.initVisualizer(); ui.drawGraph();
+            ui.log("System v6.1 Initialized");
+            setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('it-IT', {hour12: false}); }, 1000);
+            window.addEventListener('resize', () => ui.drawGraph());
+        },
+        modify(id, event) {
+            audioSynth.init();
+            const rect = event.currentTarget.getBoundingClientRect();
+            const isAdd = (event.clientX - rect.left) > (rect.width / 2);
+            const p = state.params.find(x => x.id === id);
+            const maxVal = id === config.criticalId ? config.criticalMax : 99;
+            
+            p.val = Math.max(0, Math.min(maxVal, p.val + (isAdd ? 1 : -1)));
+            ui.renderStats();
+            
+            const d = document.getElementById('display');
+            d.classList.remove('hit'); void d.offsetWidth; d.classList.add('hit');
+
+            if(id === config.criticalId) {
+                state.history.shift(); state.history.push(p.val); ui.drawGraph();
+                audioSynth.play(p.val >= 10 ? 70 : 300 + (p.val * 10), p.val >= 10 ? 'square' : 'sine', 0.1);
+                ui.log(`${p.label.toUpperCase()}_SET: ${p.val}`);
+            } else { audioSynth.play(600, 'sine', 0.05); }
+        },
+        setTrack(i) { state.activeTrack = i; state.isPlaying = true; ui.renderTracks(); audioSynth.play(1000, 'sine', 0.05); ui.log(`SYNC_0${i+1}`); },
+        skip() { app.setTrack((state.activeTrack + 1) % state.tracks.length); },
+        engage() { state.isPlaying = !state.isPlaying; audioSynth.play(150, 'sawtooth', 0.4); ui.log(state.isPlaying ? "STREAM_ON" : "STREAM_HOLD"); }
+    };
+    window.onload = app.boot;
+</script>
+</body>
+</html>

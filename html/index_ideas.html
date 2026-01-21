@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pip-green: #18f260;
+            --warning-pink: #ff007f;
+            --pip-bg: #010a01;
+            --intensity: 0; /* Gestito via JS */
+            --s: 0;         /* Intensità Shiver */
+        }
+
+        * { box-sizing: border-box; }
+
+        body { 
+            background: #000; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            margin: 0; 
+            font-family: 'JetBrains Mono', monospace; 
+            overflow: hidden;
+        }
+
+        /* DISPLAY PRINCIPALE */
+        #display {
+            width: 256px; 
+            height: 320px;
+            background: var(--pip-bg); 
+            border: 2px solid #1a1a1a; 
+            border-radius: 8px;
+            position: relative; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column;
+            padding: 15px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9), inset 0 0 15px rgba(24,242,96,0.05);
+        }
+
+        /* SCANLINES (BANDE MONITOR) - Ottimizzate per HCI */
+        #display::after {
+            content: "";
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.4) 0px,
+                rgba(0, 0, 0, 0.4) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* ANIMAZIONI */
+        @keyframes shock-hit {
+            0% { transform: translate(0,0); }
+            20% { transform: translate(calc(var(--intensity) * -1.2px), calc(var(--intensity) * 0.8px)); }
+            40% { transform: translate(calc(var(--intensity) * 1.2px), calc(var(--intensity) * -1.2px)); }
+            100% { transform: translate(0,0); }
+        }
+        .hit-effect { animation: shock-hit 0.12s ease-out; }
+
+        @keyframes text-shiver {
+            0% { transform: translate(0,0); }
+            33% { transform: translate(calc(var(--s) * -0.7px), calc(var(--s) * 0.7px)); }
+            66% { transform: translate(calc(var(--s) * 0.7px), calc(var(--s) * -0.7px)); }
+            100% { transform: translate(0,0); }
+        }
+        .shiver { display: inline-block !important; animation: text-shiver 0.06s infinite linear; }
+
+        /* HEADER */
+        .header { 
+            font-size: 9px; 
+            color: var(--pip-green); 
+            border-bottom: 1px solid rgba(24,242,96,0.2); 
+            padding-bottom: 6px; 
+            margin-bottom: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* GRIGLIA PARAMETRI */
+        #stats-container { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px; 
+        }
+
+        .card { 
+            background: rgba(24, 242, 96, 0.03); 
+            border: 1px solid rgba(24, 242, 96, 0.1); 
+            padding: 8px; 
+            border-radius: 4px; 
+            display: flex; 
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .card.critical { 
+            border-color: var(--warning-pink); 
+            background: rgba(255, 0, 127, 0.05);
+        }
+
+        .label { 
+            font-size: 7px; 
+            color: var(--pip-green); 
+            opacity: 0.7; 
+            margin-bottom: 4px; 
+            font-weight: 500;
+        }
+
+        .critical .label { color: var(--warning-pink); opacity: 1; }
+
+        .val { 
+            font-size: 26px; 
+            font-weight: 800; 
+            line-height: 1; 
+            color: var(--pip-green);
+            /* Protezione visiva per scanlines */
+            text-shadow: 1px 1px 0px #000, -1px -1px 0px #000; 
+            letter-spacing: 1px;
+        }
+
+        .critical .val { 
+            color: var(--warning-pink); 
+            text-shadow: 0 0 5px var(--warning-pink), 1px 1px 0px #000;
+        }
+
+        /* NEURAL PREDICTOR SECTION */
+        .ml-box { 
+            margin-top: auto; 
+            border: 1px solid rgba(24,242,96,0.2); 
+            padding: 10px; 
+            border-radius: 4px; 
+            background: rgba(0,0,0,0.5);
+        }
+
+        .ml-title { font-size: 7px; color: var(--pip-green); margin-bottom: 8px; font-weight: 800; }
+
+        .track { 
+            font-size: 9px; 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 4px;
+            color: rgba(24,242,96,0.4);
+        }
+
+        .track.active { color: var(--pip-green); font-weight: 800; }
+
+        .screen-actions { display: flex; gap: 8px; margin-top: 10px; }
+        
+        .s-btn { 
+            flex: 1; 
+            padding: 8px; 
+            border: 1px solid var(--pip-green); 
+            color: var(--pip-green); 
+            font-size: 9px; 
+            font-weight: 800; 
+            text-align: center; 
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .s-btn:hover { background: rgba(24,242,96,0.1); }
+        .s-btn:active { background: var(--pip-green); color: black; transform: translateY(1px); }
+
+    </style>
+</head>
+<body>
+
+<div id="display">
+    <div class="header">
+        <span id="sys-name">---</span>
+        <span id="clock">00:00</span>
+    </div>
+    
+    <div id="stats-container">
+        </div>
+
+    <div class="ml-box">
+        <div class="ml-title">NEURAL_PREDICTOR_v4.1</div>
+        <div class="track active"><span>> STREAM_A</span><span id="p1">90%</span></div>
+        <div class="track"><span>> STREAM_B</span><span id="p2">10%</span></div>
+        
+        <div class="screen-actions">
+            <div class="s-btn" onclick="uiGlitch()">Engage</div>
+            <div class="s-btn" onclick="uiGlitch()">Skip</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const config = {
+        systemName: "FEDE_CIOLONE",
+        criticalParam: "Fear",
+        parameters: [
+            { name: "Hope", val: 4 },
+            { name: "Fear", val: 8 },
+            { name: "Sync", val: 18 }, // Test numero critico
+            { name: "Bio", val: 11 }   // Test numero difficile
+        ]
+    };
+
+    function initSystem() {
+        document.getElementById('sys-name').textContent = config.systemName;
+        const statsC = document.getElementById('stats-container');
+        statsC.innerHTML = '';
+
+        config.parameters.forEach(p => {
+            const isCrit = p.name === config.criticalParam;
+            statsC.innerHTML += `
+                <div class="card ${isCrit ? 'critical' : ''}" id="card-${p.name}">
+                    <span class="label">${p.name}</span>
+                    <span class="val" id="val-${p.name}">${p.val.toString().padStart(2, '0')}</span>
+                </div>
+            `;
+        });
+        updateEffects(config.criticalParam, config.parameters.find(p => p.name === config.criticalParam).val);
+    }
+
+    function updateParam(name, value) {
+        const valEl = document.getElementById(`val-${name}`);
+        if(!valEl) return;
+        valEl.textContent = value.toString().padStart(2, '0');
+        if (name === config.criticalParam) updateEffects(name, value);
+    }
+
+    function updateEffects(name, value) {
+        const d = document.getElementById('display');
+        const valEl = document.getElementById(`val-${name}`);
+        
+        // Shake calmo per intensità basse, violento per alte
+        d.style.setProperty('--intensity', value);
+        d.classList.remove('hit-effect');
+        void d.offsetWidth; 
+        d.classList.add('hit-effect');
+
+        // Shiver controllato per non perdere leggibilità
+        if (value >= 5) {
+            valEl.classList.add('shiver');
+            valEl.style.setProperty('--s', value >= 8 ? 2 : 1);
+        } else {
+            valEl.classList.remove('shiver');
+        }
+
+        // Logic Prediction
+        let p1 = Math.max(5, 95 - (value * 9));
+        document.getElementById('p1').textContent = p1 + "%";
+        document.getElementById('p2').textContent = (100 - p1) + "%";
+    }
+
+    function uiGlitch() {
+        const d = document.getElementById('display');
+        d.style.filter = "invert(1) hue-rotate(90deg)";
+        setTimeout(() => d.style.filter = "none", 150);
+        // Esempio incremento fear al click
+        let currentFear = parseInt(document.getElementById('val-Fear').innerText);
+        updateParam('Fear', (currentFear + 1) % 11);
+    }
+
+    // Orologio Realtime
+    setInterval(() => {
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }, 1000);
+
+    initSystem();
+</script>
+
+</body>
+</html>
