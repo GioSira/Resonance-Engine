@@ -5,7 +5,7 @@ import math
 
 class TelemetryPayload(BaseModel):
 
-    session_id: str = Field(..., min_length=3, description="mandatory session ID")
+    session_id: str = Field(..., min_length=1, description="mandatory session ID")
     timestamp: float = Field(default_factory=time.time)
     metrics: Dict[str, StrictFloat]
 

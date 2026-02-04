@@ -1,4 +1,5 @@
 import pytest
+from pytest import approx
 from hypothesis import given, strategies as st
 from hypothesis import settings, HealthCheck, Verbosity
 
@@ -39,7 +40,7 @@ st_telemetry = st.builds(
 
 # ======== TEST CLASS =========
 
-@pytest.mark.integration
+#@pytest.mark.integration
 class TestRedisCache:
 
     # ===================== INIT AND CLEAR DB =======================
@@ -158,7 +159,6 @@ class TestRedisCache:
         assert stored == payload
 
 
-    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_typos_and_attribute_errors(self, cache_db):
         """
         Smoke test per verificare che i typo (self.log vs self._logger) non facciano crashare
@@ -172,3 +172,43 @@ class TestRedisCache:
             cache_db.delete_telemetry("non_existent_id")
         except AttributeError as e:
             pytest.fail(f"CRASH rilevato su attributo mancante (probabile self._warning): {e}")
+
+
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(value=st.integers(min_value=10, max_value=20), delta=st.integers(min_value=-10, max_value=10))
+    def test_update_metrics_consistency(self, cache_db, value, delta):
+
+        cache_db.set_metric("test_session", "hp", value)
+        
+        cache_db.update_metric("test_session", "hp", delta)
+        stored = cache_db.get_metric("test_session", "hp")
+
+        assert stored == value + delta
+
+        cache_db.update_metric("test_session", "hp", -delta)
+        stored = cache_db.get_metric("test_session", "hp")
+
+        assert stored == value
+
+
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(payload=st_telemetry)
+    def test_delete_metric_consistency(self, cache_db, payload):
+
+        cache_db.set_metric(payload.session_id, "hp", payload.metrics["hp"])
+        result = cache_db.delete_metric(payload.session_id, "hp")
+        assert result is True
+        stored = cache_db.get_metric(payload.session_id, "hp")
+        assert stored is None
+
+
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(payload=st_telemetry)
+    def test_clear_all_metrics_consistency(self, cache_db, payload):
+
+        cache_db.set_metric(payload.session_id, "hp", payload.metrics["hp"])
+        cache_db.set_metric(payload.session_id, "sanity", payload.metrics["sanity"])
+        result = cache_db.clear_all_metrics(payload.session_id)
+        assert result is True
+        stored = cache_db.get_all_metrics(payload.session_id)
+        assert stored is None

@@ -34,8 +34,7 @@ wheels/
 # Cartella della DiskCache (SQLite locale)
 .dso_cache_store/
 # Log dell'applicazione
-logs/*.log
-*.log
+logs/
 
 # --- UNIT TESTING ---
 .pytest_cache/
