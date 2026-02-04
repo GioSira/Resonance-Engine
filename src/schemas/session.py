@@ -1,19 +1,23 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Literal, Optional, Dict
 from enum import Enum
 
+
 # Enum per definire l'operazione di confronto
-class TriggerOperator(str, Enum):
+class _TriggerOperator(str, Enum):
     LESS_THAN = "lt"      # Per HP, Sanity (Allarme se scende)
     GREATER_THAN = "gt"   # Per Stress, Terrore (Allarme se sale)
     EQUALS = "eq"         # Per stati specifici
+
+
 
 class TriggerRule(BaseModel):
     """
     Una singola regola di attivazione musicale.
     """
+
     metric_name: str       # Es: "hp", "sanity", "tension"
-    operator: TriggerOperator
+    operator: _TriggerOperator
     threshold: float       # Il valore di soglia
     
     target_genre: str      # Es: "metal" (se HP bassi), "dark-ambient" (se Sanity bassa)
@@ -22,12 +26,28 @@ class TriggerRule(BaseModel):
     class Config:
         use_enum_values = True
 
+    def __eq__(self, other):
+        if not isinstance(other, TriggerRule):
+            return False
+        return (self.metric_name == other.metric_name and 
+                self.operator == other.operator and 
+                self.threshold == other.threshold and 
+                self.target_genre == other.target_genre and 
+                self.priority == other.priority)
+
+    def __hash__(self):
+        # Usiamo una tupla dei campi per generare l'hash unico
+        return hash((self.metric_name, self.operator, self.threshold, self.target_genre, self.priority))
+
+    
+
 class SessionConfig(BaseModel):
+    
     """
     La configurazione completa della partita.
     """
     session_id: str
-    default_genre: str = None
+    default_genre: Optional[str] = None
     
     # Qui risiede la potenza: una lista di N regole
     rules: List[TriggerRule] = []
@@ -38,7 +58,9 @@ class SessionConfig(BaseModel):
         # Ordina per priorità decrescente
         return sorted(triggered_rules, key=lambda x: x.priority, reverse=True)[0]
 
+
 class SessionState(BaseModel):
+    
     """
     Lo stato salvato su Redis/Firebase.
     Unisce la Configurazione (Regole) con gli ultimi Dati (Metrics).
@@ -47,3 +69,7 @@ class SessionState(BaseModel):
     last_metrics: Optional[Dict[str, float]] = None
     current_status: Literal["NOMINAL", "CRITICAL"] = "NOMINAL"
     active_rule_metric: Optional[str] = None # Quale regola sta suonando ora?
+
+    @property
+    def session_id(self) -> str:
+        return self.config.session_id

@@ -2,18 +2,20 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
+from src.shared.config import settings
 
 class _Logger(object):
 
     _logger = None
-    _folder = None
+    _folder = settings.LOG_FOLDER
 
-    def __init__(self, folder):
+    
+    @classmethod
+    def _initialize_folder(cls):
         
-        self._folder = folder
+        if not os.path.exists(cls._folder):
+            os.makedirs(cls._folder, exist_ok=True)
         
-        if not os.path.exists(self._folder):
-            os.makedirs(self._folder)
 
     @classmethod
     def get_logger(cls, name: str = "CORE"):
@@ -21,6 +23,8 @@ class _Logger(object):
         # if logger already exists
         if cls._logger:
             return cls._logger.getChild(name)
+        
+        cls._initialize_folder()
         
         # Base configuration
         logger = logging.getLogger("ROOT")

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from pydantic import validate_call
 from typing import Optional
-from schemas.session import SessionConfig, SessionState
-from schemas.metrics import TelemetryPayload 
+from src.schemas.session import SessionConfig, SessionState
+from src.schemas.metrics import TelemetryPayload 
 
 
 class ICache(ABC):
@@ -29,4 +29,29 @@ class ICache(ABC):
     @abstractmethod
     @validate_call
     def get_session(self, session_id: str) -> Optional[SessionState]:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def update_telemetry(self, payload: TelemetryPayload) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def update_session(self, payload: SessionState) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def delete_telemetry(self, session_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def delete_session(sef, session_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def clear_all(self) -> None:
         pass

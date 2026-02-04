@@ -2,11 +2,11 @@ import os
 from typing import Optional
 
 from .interface import IDatabase
-from schemas.metrics import TelemetryPayload
-from schemas.session import SessionConfig, SessionState
-from shared.decorator import retry_on_failure
-from shared.logger import get_logger
-from shared.config import settings
+from src.schemas.metrics import TelemetryPayload
+from src.schemas.session import SessionConfig, SessionState
+from src.shared.decorator import retry_on_failure
+from src.shared.logger import get_logger
+from src.shared.config import settings
 
 import firebase_admin
 from firebase_admin import credentials, firestore

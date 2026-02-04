@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 from pydantic import validate_call
-from schemas.session import SessionConfig, SessionState
-from schemas.metrics import TelemetryPayload 
+from src.schemas.session import SessionState
+from src.schemas.metrics import TelemetryPayload 
 
 class IDatabase(ABC):
     """
@@ -52,5 +52,33 @@ class IDatabase(ABC):
 
         :param session_id: the session id
         :type session_id: str
+        """
+        pass
+
+
+    @abstractmethod
+    @validate_call
+    def update_telemetry(self, payload: TelemetryPayload) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def update_session(self, payload: SessionState) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def delete_telemetry(self, session_id: str) -> None:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def delete_session(self, session_id: str) -> None:
+        pass
+
+    @abstractmethod
+    def clear_all(self) -> None:
+        """
+        Clear database and all its collections during testing
         """
         pass
