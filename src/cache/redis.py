@@ -139,8 +139,9 @@ class RedisCache(ICache):
     def delete_telemetry(self, session_id: str) -> bool:
         """Removes telemetry data for a session from the cache."""
         try:
-            key = f"sessions:{session_id}:telemetry"
-            return bool(self._client.delete(key))
+            with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+                key = f"sessions:{session_id}:telemetry"
+                return bool(self._client.delete(key))
         except Exception as e:
             self._logger.error(f"❌ Telemetry delete failed: {e}")
             return False
@@ -149,8 +150,9 @@ class RedisCache(ICache):
     def delete_session(self, session_id: str) -> bool:
         """Removes session state data from the cache."""
         try:
-            key = f"sessions:{session_id}:state"
-            return bool(self._client.delete(key))
+            with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+                key = f"sessions:{session_id}:state"
+                return bool(self._client.delete(key))
         except Exception as e:
             self._logger.error(f"❌ SessionState delete failed: {e}")
             return False
@@ -169,9 +171,11 @@ class RedisCache(ICache):
             self._logger.error(f"⛔ Injection attempt detected on metric {metric}")
             raise ValueError("Invalid metric name")
         
-        key = f"sessions:{session_id}:metrics"
-        self._client.hset(key, metric, value)
-        self._client.expire(key, self._ttl)
+        with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+            key = f"sessions:{session_id}:metrics"
+            self._client.hset(key, metric, value)
+            self._client.expire(key, self._ttl)
+        
         self._logger.debug(f"🟢 Metric {metric} set to {value} for session {session_id}")
 
     @retry_on_failure(max_retries=3, base_delay=1.0)
@@ -186,9 +190,12 @@ class RedisCache(ICache):
         
         key = f"sessions:{session_id}:metrics"
         try:
-            new_value = self._client.hincrbyfloat(key, metric, delta)
-            self._client.expire(key, self._ttl)
-            return float(new_value)
+            with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+                new_value = self._client.hincrbyfloat(key, metric, delta)
+                # dirty value to store data into db
+                self.mark_session_as_dirty(session_id)
+                self._client.expire(key, self._ttl)
+                return float(new_value)
         except Exception as e:
             self._logger.error(f"❌ Failed to update metric {metric}: {e}")
             raise e
@@ -222,9 +229,23 @@ class RedisCache(ICache):
         
         key = f"sessions:{session_id}:metrics"
         try:
-            return bool(self._client.hdel(key, metric))
+            with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+                return bool(self._client.hdel(key, metric))
         except Exception as e:
             self._logger.error(f"❌ Failed to delete metric {metric}: {e}")
+            raise e
+
+    def set_all_metrics(self, session_id: str, metrics: Dict[str, float]) -> bool:
+        
+        """Sets all hash fields (metrics) for a given session."""
+        
+        try:
+            with self._client.lock(f"sessions:{session_id}:lock", timeout=2):
+                for k, v in metrics.items():
+                    self.set_metric(session_id, k, v)
+            return True
+        except Exception as e:
+            self._logger.error(f"❌ Failed to set metrics {metrics}: {e}")
             raise e
 
     @retry_on_failure(max_retries=3, base_delay=1.0)
@@ -257,9 +278,78 @@ class RedisCache(ICache):
             self._logger.error(f"❌ Failed to clear metrics for session {session_id}: {e}")
             raise e
 
+    # ---------------------------------------------------------
+    # SECTION 3: Dirty sessions and deduplication
+    # ---------------------------------------------------------
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def mark_session_as_dirty(self, session_id: str):
+        """Marks a session as dirty."""
+        try:
+            self._client.sadd("registry:dirty_sessions", session_id)
+            self._logger.info(f"🧹 Session {session_id} marked as dirty")
+        except Exception as e:
+            self._logger.error(f"❌ Failed to mark session {session_id} as dirty: {e}")
+            raise e
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def clean_session(self, session_id: str):
+        """Cleans a session by removing it from the registry."""
+        try:
+            self._client.srem("registry:dirty_sessions", session_id)
+            self._logger.info(f"🧹 Session {session_id} cleaned")
+        except Exception as e:
+            self._logger.error(f"❌ Failed to clean session {session_id}: {e}")
+            raise e
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def remove_dirty_sessions(self):
+        """Removes all dirty sessions from the registry."""
+        try:
+            self._client.delete("registry:dirty_sessions")
+            self._logger.info("🧹 Dirty sessions removed from registry")
+        except Exception as e:
+            self._logger.error(f"❌ Failed to remove dirty sessions: {e}")
+            raise e
+    
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def get_all_dirty_sessions(self):
+        """Retrieves all dirty sessions from the registry."""
+        try:
+            return self._client.smembers("registry:dirty_sessions")
+        except Exception as e:
+            self._logger.error(f"❌ Failed to get dirty sessions: {e}")
+            raise e
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def get_dirty_sessions_count(self):
+        """Retrieves the count of dirty sessions in the registry."""
+        try:
+            return self._client.scard("registry:dirty_sessions")
+        except Exception as e:
+            self._logger.error(f"❌ Failed to get dirty sessions count: {e}")
+            raise e
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def is_session_dirty(self, session_id: str) -> bool:
+        """Checks if a session is dirty."""
+        try:
+            return self._client.sismember("registry:dirty_sessions", session_id)
+        except Exception as e:
+            self._logger.error(f"❌ Failed to check if session {session_id} is dirty: {e}")
+            raise e
+
+    @retry_on_failure(max_retries=3, base_delay=1.0)
+    def check_and_set_dedup(self, request_hash: str, ttl: int = 100) -> bool:
+        """Checks if a request hash exists in the dedup set, and if not, adds it with a TTL."""
+        try:
+            return self._client.set(f"dedup:{request_hash}", 1, ex=ttl)
+        except Exception as e:
+            self._logger.error(f"❌ Failed to check and set dedup for request {request_hash}: {e}")
+            raise e
 
     # ---------------------------------------------------------
-    # SECTION 3: Maintenance & Testing
+    # SECTION 4: Maintenance & Testing
     # ---------------------------------------------------------
     
     def clear_all(self):
@@ -276,5 +366,8 @@ class RedisCache(ICache):
             if keys:
                 self._client.delete(*keys)
                 self._logger.info(f"🧹 Database cleaned: removed {len(keys)} keys.")
+            
+            self.remove_dirty_sessions()
         except Exception as e:
-            self._logger.error(f"❌ Error during clear_all: {e}")
+            self._logger.error(f"❌ Error during database cleanup: {e}")
+            raise e

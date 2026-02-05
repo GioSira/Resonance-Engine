@@ -55,3 +55,37 @@ class ICache(ABC):
     @validate_call
     def clear_all(self) -> None:
         pass
+
+    # ---------------------------------------------------------
+    # SECTION 2: TTRPG High-Frequency Metrics (Atomic)
+    # ---------------------------------------------------------
+
+    @abstractmethod
+    @validate_call
+    def set_metric(self, session_id: str, metric: str, value: float) -> None:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def update_metric(self, session_id: str, metric: str, delta: float) -> float:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def get_metric(self, session_id: str, metric: str) -> float:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def delete_metric(self, session_id: str, metric: str) -> bool:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def get_all_metrics(self, session_id: str) -> dict[str, float]:
+        pass
+
+    @abstractmethod
+    @validate_call
+    def clear_all_metrics(self, session_id: str) -> bool:
+        pass
